@@ -71,6 +71,21 @@ const renderFilter = (assignees) => {
   );
 };
 
+const renderIssueFilter = () => {
+  const issueFilterContainer = document.createElement('div');
+  issueFilterContainer.className = 'issue-filter';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Task ara...';
+  input.addEventListener('input', (e) => filterToIssue(e.target.value));
+
+  issueFilterContainer.appendChild(input);
+
+  // Assuming '#ghx-header' is the container where the filter should be added
+  document.querySelector('#ghx-header').appendChild(issueFilterContainer);
+};
+
 const getAllVisibleAssignees = () => {
   logger.info('Getting all assignees...');
   const avatars = [];
@@ -94,7 +109,37 @@ const init = async () => {
   await new Promise((resolve) => setTimeout(resolve, 1000));
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
+  const issueFilter = renderIssueFilter();
   $('#ghx-header').append(assigneeFilter);
+  $('#ghx-header').append(issueFilter);
+};
+
+const filterToIssue = async (searchTerm) => {
+  observers.forEach((o) => o.disconnect());
+  observers = [];
+
+  if (searchTerm) {
+    $('.ghx-column').each((_, e) => {
+      const observer = new MutationObserver(() => {
+        filterToIssue(searchTerm);
+      });
+      observer.observe(e, { childList: true, subtree: true });
+      observers.push(observer);
+    });
+
+    $('.ghx-issue').hide();
+
+    $('.ghx-issue').each((_, e) => {
+      const issueKey = $(e).data('issue-key').toLowerCase();
+      const summary = $(e).find('.ghx-summary').text().toLowerCase();
+      if (issueKey.includes(searchTerm.toLowerCase()) || summary.includes(searchTerm.toLowerCase())) {
+        $(e).show();
+      }
+    });
+  } else {
+
+    $('.ghx-issue').show();
+  }
 };
 
 $(window).ready(init);
