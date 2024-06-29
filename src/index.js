@@ -170,6 +170,6 @@ const renderIssueFilter = () => {
   return issueFilterContainer;
 };
 
-const isBacklogView = () => window.location.href.includes('view=planning.nodetail');
+const isBacklogView = () => window.location.href.includes('view=planning');
 
 $(window).ready(init);
