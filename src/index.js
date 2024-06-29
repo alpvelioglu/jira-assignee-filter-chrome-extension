@@ -14,10 +14,49 @@ const logger = {
 let observers = [];
 let currentAssignee = null;
 
+const init = async () => {
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  const assignees = getAllVisibleAssignees();
+  const assigneeFilter = renderFilter(assignees);
+  const issueFilter = renderIssueFilter();
+  const mainContainer = document.createElement('div');
+  mainContainer.style.display = 'flex';
+  mainContainer.style.gap = '10px'; // Adds space between the components
+  mainContainer.append(assigneeFilter);
+  mainContainer.append(issueFilter);
+  $('#ghx-header').append(mainContainer);
+  //assigneeFilter.append(issueFilter);
+};
+
+const getAllVisibleAssignees = () => {
+  logger.info('Getting all assignees...');
+
+  const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
+
+  const avatars = [];
+  $(avatarContainer).each((_, el) => {
+    const img = $(el).attr('src');
+    const name = $(el)
+      .attr('alt')
+      .split(': ')[1];
+    const avatar = {
+      name,
+      img,
+    };
+    avatars.push(avatar);
+  });
+  const assignees = uniqBy(avatars, 'name');
+  logger.info(assignees);
+  return assignees;
+};
+
 const filterToAssignee = async (name) => {
   currentAssignee = name;
   logger.info({ currentAssignee });
 
+  const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+  const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
+  
   // clear highlights
   $('.assignee-avatar').removeClass('highlight');
 
@@ -36,12 +75,12 @@ const filterToAssignee = async (name) => {
     });
 
     // hide all cards
-    $('.ghx-issue').hide();
+    $(issueSelector).hide();
 
     // show only ones with correct assignee
-    $(`.ghx-avatar img[alt="Assignee: ${currentAssignee}"]`).each((_, el) =>
+    $(`${avatarContainer}[alt="Assignee: ${currentAssignee}"]`).each((_, el) =>
       $(el)
-        .closest('.ghx-issue')
+        .closest(issueSelector)
         .show(),
     );
 
@@ -50,7 +89,36 @@ const filterToAssignee = async (name) => {
   } else {
     console.log('clear filter');
     // clear filter
-    $('.ghx-issue').show();
+    $(issueSelector).show();
+  }
+};
+
+const filterToIssue = async (searchTerm) => {
+  observers.forEach((o) => o.disconnect());
+  observers = [];
+
+  const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+
+  if (searchTerm) {
+    $('.ghx-column').each((_, e) => {
+      const observer = new MutationObserver(() => {
+        filterToIssue(searchTerm);
+      });
+      observer.observe(e, { childList: true, subtree: true });
+      observers.push(observer);
+    });
+
+    $(issueSelector).hide();
+
+    $(issueSelector).each((_, e) => {
+      const issueKey = $(e).data('issue-key').toLowerCase();
+      const summary = isBacklogView() ? $(e).find('.ghx-summary').text().toLowerCase() : $(e).find('.ghx-summary').text().toLowerCase();
+      if (issueKey.includes(searchTerm.toLowerCase()) || summary.includes(searchTerm.toLowerCase())) {
+        $(e).show();
+      }
+    });
+  } else {
+    $(issueSelector).show();
   }
 };
 
@@ -96,65 +164,6 @@ const renderIssueFilter = () => {
   return issueFilterContainer;
 };
 
-const getAllVisibleAssignees = () => {
-  logger.info('Getting all assignees...');
-  const avatars = [];
-  $('.ghx-avatar img').each((_, el) => {
-    const img = $(el).attr('src');
-    const name = $(el)
-      .attr('alt')
-      .split(': ')[1];
-    const avatar = {
-      name,
-      img,
-    };
-    avatars.push(avatar);
-  });
-  const assignees = uniqBy(avatars, 'name');
-  logger.info(assignees);
-  return assignees;
-};
-
-const init = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  const assignees = getAllVisibleAssignees();
-  const assigneeFilter = renderFilter(assignees);
-  const issueFilter = renderIssueFilter();
-  const mainContainer = document.createElement('div');
-  mainContainer.style.display = 'flex';
-  mainContainer.style.gap = '10px'; // Adds space between the components
-  mainContainer.append(assigneeFilter);
-  mainContainer.append(issueFilter);
-  $('#ghx-header').append(mainContainer);
-  //assigneeFilter.append(issueFilter);
-};
-
-const filterToIssue = async (searchTerm) => {
-  observers.forEach((o) => o.disconnect());
-  observers = [];
-
-  if (searchTerm) {
-    $('.ghx-column').each((_, e) => {
-      const observer = new MutationObserver(() => {
-        filterToIssue(searchTerm);
-      });
-      observer.observe(e, { childList: true, subtree: true });
-      observers.push(observer);
-    });
-
-    $('.ghx-issue').hide();
-
-    $('.ghx-issue').each((_, e) => {
-      const issueKey = $(e).data('issue-key').toLowerCase();
-      const summary = $(e).find('.ghx-summary').text().toLowerCase();
-      if (issueKey.includes(searchTerm.toLowerCase()) || summary.includes(searchTerm.toLowerCase())) {
-        $(e).show();
-      }
-    });
-  } else {
-
-    $('.ghx-issue').show();
-  }
-};
+const isBacklogView = () => window.location.href.includes('view=planning.nodetail');
 
 $(window).ready(init);
