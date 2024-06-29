@@ -34,6 +34,9 @@ const init = async () => {
   {
     $('#ghx-header').append(mainContainer);
   }
+  window.navigation.addEventListener("navigate", (event) => {
+    init();
+  });
 };
 
 const getAllVisibleAssignees = () => {
@@ -92,8 +95,6 @@ const filterToAssignee = async (name) => {
     // highlight filter
     $(`.assignee-avatar[data-name="${name}"]`).addClass('highlight');
   } else {
-    console.log('clear filter');
-    // clear filter
     $(issueSelector).show();
   }
 };
@@ -162,7 +163,6 @@ const renderIssueFilter = () => {
     input.value = '';
     filterToIssue('');
     filterToAssignee(null);
-    init();
   });
 
   issueFilterContainer.appendChild(input);
