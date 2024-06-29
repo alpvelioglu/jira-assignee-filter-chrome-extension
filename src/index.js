@@ -74,16 +74,26 @@ const renderFilter = (assignees) => {
 const renderIssueFilter = () => {
   const issueFilterContainer = document.createElement('div');
   issueFilterContainer.className = 'issue-filter';
+  issueFilterContainer.style.display = 'flex'; // Use flexbox layout
+  issueFilterContainer.style.alignItems = 'center'; // Align items vertically in the center
+  issueFilterContainer.style.gap = '10px'; // Adds space between the components
 
   const input = document.createElement('input');
   input.type = 'text';
   input.placeholder = 'Task ara...';
   input.addEventListener('input', (e) => filterToIssue(e.target.value));
 
+  const button = document.createElement('button');
+  button.textContent = 'Temizle';
+  button.addEventListener('click', () => {
+    input.value = '';
+    filterToIssue('');
+    filterToAssignee(null);
+  });
+
   issueFilterContainer.appendChild(input);
+  issueFilterContainer.appendChild(button);
   return issueFilterContainer;
-  // Assuming '#ghx-header' is the container where the filter should be added
-  //document.querySelector('#ghx-header').appendChild(issueFilterContainer);
 };
 
 const getAllVisibleAssignees = () => {
