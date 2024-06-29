@@ -20,17 +20,23 @@ const init = async () => {
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
   const mainContainer = document.createElement('div');
+  let assigneeFilterContainer = document.getElementById('assignee-filter-container');
+  mainContainer.id = 'assignee-filter-container';
   mainContainer.style.display = 'flex';
   mainContainer.style.gap = '10px'; // Adds space between the components
   mainContainer.append(assigneeFilter);
   mainContainer.append(issueFilter);
-  $('#ghx-header').append(mainContainer);
-  //assigneeFilter.append(issueFilter);
+  if(assigneeFilterContainer)
+  {
+    $(assigneeFilterContainer).replaceWith(mainContainer);
+  }
+  else
+  {
+    $('#ghx-header').append(mainContainer);
+  }
 };
 
 const getAllVisibleAssignees = () => {
-  logger.info('Getting all assignees...');
-
   const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
 
   const avatars = [];
@@ -45,14 +51,13 @@ const getAllVisibleAssignees = () => {
     };
     avatars.push(avatar);
   });
-  const assignees = uniqBy(avatars, 'name');
-  logger.info(assignees);
+  let assignees = uniqBy(avatars, 'name');
+  assignees = assignees.sort((a, b) => a.name.localeCompare(b.name));
   return assignees;
 };
 
 const filterToAssignee = async (name) => {
   currentAssignee = name;
-  logger.info({ currentAssignee });
 
   const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
   const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
@@ -152,11 +157,12 @@ const renderIssueFilter = () => {
   input.addEventListener('input', (e) => filterToIssue(e.target.value));
 
   const button = document.createElement('button');
-  button.textContent = 'Temizle';
+  button.textContent = 'Sıfırla';
   button.addEventListener('click', () => {
     input.value = '';
     filterToIssue('');
     filterToAssignee(null);
+    init();
   });
 
   issueFilterContainer.appendChild(input);
