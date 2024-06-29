@@ -81,9 +81,9 @@ const renderIssueFilter = () => {
   input.addEventListener('input', (e) => filterToIssue(e.target.value));
 
   issueFilterContainer.appendChild(input);
-
+  return issueFilterContainer;
   // Assuming '#ghx-header' is the container where the filter should be added
-  document.querySelector('#ghx-header').appendChild(issueFilterContainer);
+  //document.querySelector('#ghx-header').appendChild(issueFilterContainer);
 };
 
 const getAllVisibleAssignees = () => {
@@ -110,8 +110,13 @@ const init = async () => {
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
-  $('#ghx-header').append(assigneeFilter);
-  $('#ghx-header').append(issueFilter);
+  const mainContainer = document.createElement('div');
+  mainContainer.style.display = 'flex';
+  mainContainer.style.gap = '10px'; // Adds space between the components
+  mainContainer.append(assigneeFilter);
+  mainContainer.append(issueFilter);
+  $('#ghx-header').append(mainContainer);
+  //assigneeFilter.append(issueFilter);
 };
 
 const filterToIssue = async (searchTerm) => {
