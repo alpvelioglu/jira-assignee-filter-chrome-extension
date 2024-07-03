@@ -34,10 +34,13 @@ const init = async () => {
   {
     $('#ghx-header').append(mainContainer);
   }
-  // window.navigation.addEventListener("navigate", (event) => {
-  //   init();
-  // });
+  var cassignee = localStorage.getItem('currentAssignee');
+  filterToAssignee(cassignee === 'null' ? null : cassignee);
+  window.navigation.removeEventListener("navigate", handleNavigate);
+  window.navigation.addEventListener("navigate", handleNavigate);
 };
+
+function handleNavigate(event) { init();}
 
 const getAllVisibleAssignees = () => {
   const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
@@ -61,6 +64,7 @@ const getAllVisibleAssignees = () => {
 
 const filterToAssignee = async (name) => {
   currentAssignee = name;
+  localStorage.setItem('currentAssignee', name);
 
   const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
   const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
@@ -71,7 +75,7 @@ const filterToAssignee = async (name) => {
   // disconnect previous mutation observers
   observers.map((o) => o.disconnect());
   observers = [];
-
+  console.log("BURAYASUN", localStorage.getItem('currentAssignee'));
   if (currentAssignee) {
     // reset filter on .ghx-column subtree modifications changes
     $('.ghx-column').each((_, e) => {
@@ -157,21 +161,29 @@ const renderIssueFilter = () => {
   input.placeholder = 'Task ara...';
   input.addEventListener('input', (e) => filterToIssue(e.target.value));
 
-  const button = document.createElement('button');
-  button.textContent = 'Sıfırla';
-  button.addEventListener('click', () => {
+  const clearButton = document.createElement('button');
+  clearButton.textContent = 'Sıfırla';
+  clearButton.addEventListener('click', () => {
     input.value = '';
     filterToIssue('');
     filterToAssignee(null);
+    init();
   });
 
+  // const refreshButton = document.createElement('button');
+  // refreshButton.textContent = 'Yenile';
+  // refreshButton.addEventListener('click', () => {
+  //   init();
+  // });
+
   issueFilterContainer.appendChild(input);
-  issueFilterContainer.appendChild(button);
+  issueFilterContainer.appendChild(clearButton);
+  // issueFilterContainer.appendChild(refreshButton);
   return issueFilterContainer;
 };
 
 const isBacklogView = () => {
-  console.log(window.location.href.includes('view=planning' || 'view=planning.nodetail'))
+  console.log("isBacklogView");
   return window.location.href.includes('view=planning' || 'view=planning.nodetail');
 };
 
