@@ -15,7 +15,7 @@ let observers = [];
 let currentAssignee = null;
 
 const init = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await new Promise((resolve) => setTimeout(resolve, 1200));
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
@@ -34,9 +34,9 @@ const init = async () => {
   {
     $('#ghx-header').append(mainContainer);
   }
-  window.navigation.addEventListener("navigate", (event) => {
-    init();
-  });
+  // window.navigation.addEventListener("navigate", (event) => {
+  //   init();
+  // });
 };
 
 const getAllVisibleAssignees = () => {
@@ -170,6 +170,9 @@ const renderIssueFilter = () => {
   return issueFilterContainer;
 };
 
-const isBacklogView = () => window.location.href.includes('view=planning');
+const isBacklogView = () => {
+  console.log(window.location.href.includes('view=planning' || 'view=planning.nodetail'))
+  return window.location.href.includes('view=planning' || 'view=planning.nodetail');
+};
 
 $(window).ready(init);
