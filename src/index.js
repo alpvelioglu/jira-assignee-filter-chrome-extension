@@ -13,9 +13,13 @@ const logger = {
 
 let observers = [];
 let currentAssignee = null;
+let testers = null;
 
 const init = async () => {
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+  let boardId = getBoardId();
+  let sprintId = await getActiveSprintId(boardId);
+  testers = await getIssuesInActiveSprintByTester(sprintId);
+  await new Promise((resolve) => setTimeout(resolve, 800)); 
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
@@ -63,6 +67,7 @@ const getAllVisibleAssignees = () => {
 };
 
 const filterToAssignee = async (name) => {
+  console.log(name);
   currentAssignee = name;
   localStorage.setItem('currentAssignee', name);
 
@@ -75,7 +80,6 @@ const filterToAssignee = async (name) => {
   // disconnect previous mutation observers
   observers.map((o) => o.disconnect());
   observers = [];
-  console.log("BURAYASUN", localStorage.getItem('currentAssignee'));
   if (currentAssignee) {
     // reset filter on .ghx-column subtree modifications changes
     $('.ghx-column').each((_, e) => {
@@ -95,7 +99,20 @@ const filterToAssignee = async (name) => {
         .closest(issueSelector)
         .show(),
     );
+    
+    if(testers !== null)
+    {
+      const currentTester = testers.filter(tester => tester.name === currentAssignee);
 
+      currentTester.forEach((tester) => {
+        const issueKey = tester.key;
+        
+        $(`${issueSelector}[data-issue-key="${issueKey}"], ${issueSelector}[id="${issueKey}"]`).each((_, issueEl) => {
+        $(issueEl).show();
+        });
+      });
+    }
+    
     // highlight filter
     $(`.assignee-avatar[data-name="${name}"]`).addClass('highlight');
   } else {
@@ -183,8 +200,30 @@ const renderIssueFilter = () => {
 };
 
 const isBacklogView = () => {
-  console.log("isBacklogView");
   return window.location.href.includes('view=planning' || 'view=planning.nodetail');
 };
+
+// ACCESSING JIRA SERVER
+const getBoardId = () => {
+  const boardId = window.location.href.match(/rapidView=(\d+)/);
+  return boardId ? boardId[1] : null;
+};
+
+const getActiveSprintId = async (boardId, startAt = 126) => {
+  const response = await fetch(`/rest/agile/1.0/board/${boardId}/sprint?startAt=${startAt}`);
+  const data = await response.json();
+  if(data.isLast)
+  {
+    return data.values.find((sprint) => sprint.state === 'active').id;
+  }
+  else return await getActiveSprintId(boardId, parseInt(data.startAt) + 50);
+}
+
+const getIssuesInActiveSprintByTester = async (sprintId) => {
+  const response = await fetch(`/rest/agile/1.0/sprint/${sprintId}/issue?maxResults=100`);
+  const data = await response.json();
+  const filteredIssues = data.issues.filter(issue => issue.fields.customfield_11549 !== null).map(issue => ({ key: issue.key, name: issue.fields.customfield_11549.displayName }));
+  return filteredIssues;
+}
 
 $(window).ready(init);
