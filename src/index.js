@@ -18,8 +18,8 @@ let testers = null;
 const init = async () => {
   let boardId = getBoardId();
   let sprintId = await getActiveSprintId(boardId);
-  testers = await getIssuesInActiveSprintByTester(sprintId);
-  await new Promise((resolve) => setTimeout(resolve, 800)); 
+  testers = await getIssuesInActiveSprintByTester(sprintId);;
+  //await new Promise((resolve) => setTimeout(resolve, 800)); 
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
