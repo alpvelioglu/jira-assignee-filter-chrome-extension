@@ -209,7 +209,7 @@ const getBoardId = () => {
   return boardId ? boardId[1] : null;
 };
 
-const getActiveSprintId = async (boardId, startAt = 126) => {
+const getActiveSprintId = async (boardId, startAt = 26) => {
   const response = await fetch(`/rest/agile/1.0/board/${boardId}/sprint?startAt=${startAt}`);
   const data = await response.json();
   if(data.isLast)
