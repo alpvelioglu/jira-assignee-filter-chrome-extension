@@ -18,11 +18,11 @@ let testers = null;
 const init = async () => {
   let boardId = getBoardId();
   let sprintId = await getActiveSprintId(boardId);
-  testers = await getIssuesInActiveSprintByTester(sprintId);;
   //await new Promise((resolve) => setTimeout(resolve, 800)); 
   const assignees = getAllVisibleAssignees();
   const assigneeFilter = renderFilter(assignees);
   const issueFilter = renderIssueFilter();
+  const lastUpdateTime = renderLastUpdateTime(localStorage.getItem('testersData') ? JSON.parse(localStorage.getItem('testersData')).lastUpdateTime : 'Bilinmiyor');
   const mainContainer = document.createElement('div');
   let assigneeFilterContainer = document.getElementById('assignee-filter-container');
   mainContainer.id = 'assignee-filter-container';
@@ -30,6 +30,7 @@ const init = async () => {
   mainContainer.style.gap = '10px'; // Adds space between the components
   mainContainer.append(assigneeFilter);
   mainContainer.append(issueFilter);
+  mainContainer.append(lastUpdateTime);
   if(assigneeFilterContainer)
   {
     $(assigneeFilterContainer).replaceWith(mainContainer);
@@ -40,11 +41,42 @@ const init = async () => {
   }
   var cassignee = localStorage.getItem('currentAssignee');
   filterToAssignee(cassignee === 'null' ? null : cassignee);
+  testers = await getIssuesInActiveSprintByTester(sprintId);
+
+  const testersData = {
+    testers: testers,
+    lastUpdateTime: formatDate(new Date()),
+  };
+  localStorage.setItem('testersData', JSON.stringify(testersData));
+  lastUpdateTime.remove();
+  // let newIssues = 0;
+  // if(testers !== null) 
+  // {
+  //   newIssues = testers.filter(tester => tester.name === currentAssignee).length - localStorage.getItem('testersData') ? JSON.parse(localStorage.getItem('testersData')).testers.filter(tester => tester.name === currentAssignee).length : 0;
+  // }
+  const updatedLastUpdateTime = renderLastUpdateTime(testersData.lastUpdateTime);
+  mainContainer.append(updatedLastUpdateTime);
+  cassignee = localStorage.getItem('currentAssignee');
+  filterToAssignee(cassignee === 'null' ? null : cassignee);
   window.navigation.removeEventListener("navigate", handleNavigate);
   window.navigation.addEventListener("navigate", handleNavigate);
 };
 
 function handleNavigate(event) { init();}
+
+function pad(num) {
+  return num < 10 ? '0' + num : num;
+}
+
+function formatDate(date) {
+  const day = pad(date.getDate());
+  const month = pad(date.getMonth() + 1);
+  const year = date.getFullYear();
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${day}.${month}.${year} - ${hours}:${minutes}:${seconds}`;
+}
 
 const getAllVisibleAssignees = () => {
   const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
@@ -67,7 +99,7 @@ const getAllVisibleAssignees = () => {
 };
 
 const filterToAssignee = async (name) => {
-  console.log(name);
+  //console.log(name);
   currentAssignee = name;
   localStorage.setItem('currentAssignee', name);
 
@@ -99,11 +131,11 @@ const filterToAssignee = async (name) => {
         .closest(issueSelector)
         .show(),
     );
-    
-    if(testers !== null)
-    {
-      const currentTester = testers.filter(tester => tester.name === currentAssignee);
 
+    const currentTester = testers !== null ? testers.filter(tester => tester.name === currentAssignee) : localStorage.getItem('testersData') ? JSON.parse(localStorage.getItem('testersData')).testers.filter(tester => tester.name === currentAssignee) : null;
+    
+    if(currentTester !== null)
+    {
       currentTester.forEach((tester) => {
         const issueKey = tester.key;
         
@@ -197,6 +229,20 @@ const renderIssueFilter = () => {
   issueFilterContainer.appendChild(clearButton);
   // issueFilterContainer.appendChild(refreshButton);
   return issueFilterContainer;
+};
+
+const renderLastUpdateTime = (lastUpdateTime) => {
+  const lastUpdateContainer = document.createElement('div');
+  lastUpdateContainer.className = 'last-update-time';
+  lastUpdateContainer.textContent = `Son güncelleme: ${lastUpdateTime}`;
+  lastUpdateContainer.style.alignContent = 'center';
+
+  // lastUpdateContainer.appendChild(document.createElement('br'));
+  // const missingIssueCount = document.createElement('span');
+  // missingIssueCount.textContent = `Yeni ${missingIssue} kayıt bulundu.`;
+  // lastUpdateContainer.appendChild(missingIssueCount);
+  
+  return lastUpdateContainer;
 };
 
 const isBacklogView = () => {
