@@ -1,11 +1,24 @@
+#assignee-filter-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 8px 12px;
+  background-color: #f5f5f5;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 8px 0;
+}
+
 #assignee-filter {
   display: flex;
   padding-left: 0;
+  margin: 0;
 }
 
 #assignee-filter > li {
   list-style: none;
   display: flex;
+  margin-right: 4px;
 }
 
 #assignee-filter .assignee-avatar {
@@ -14,12 +27,19 @@
   overflow: hidden;
   width: 30px;
   height: 30px;
-  border: 4px solid white;
+  border: 3px solid white;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+#assignee-filter .assignee-avatar:hover {
+  transform: scale(1.1);
 }
 
 #assignee-filter .assignee-avatar.highlight {
-  border-color: orange;
+  border-color: #0052cc;
+  transform: scale(1.1);
 }
 
 #assignee-filter .assignee-avatar img {
@@ -27,65 +47,138 @@
   height: auto;
 }
 
+.filter-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 1px solid #ddd;
+}
+
+.filter-section-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #5e6c84;
+  margin-bottom: 4px;
+}
+
+.issue-filter {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+}
+
+.issue-filter .input-container {
+  display: flex;
+  gap: 8px;
+}
+
 .issue-filter input {
   padding: 8px 12px;
-  border: 1px solid #ccc;
+  border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
-  margin-top: 2px;
+  flex-grow: 1;
+  transition: all 0.2s ease;
 }
 
 .issue-filter input:focus {
   outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 2px rgba(0,123,255,.25);
+  border-color: #0052cc;
+  box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.25);
 }
 
-.issue-filter button {
-  background-color: #36A9AE;
-  background-image: linear-gradient(#37ADB2, #329CA0);
-  border: 1px solid #2A8387;
+.button {
+  background-color: #0052cc;
+  color: white;
+  border: none;
   border-radius: 4px;
-  box-shadow: rgba(0, 0, 0, 0.12) 0 1px 1px;
-  color: #FFFFFF;
-  cursor: pointer;
-  display: block;
-  font-family: -apple-system,".SFNSDisplay-Regular","Helvetica Neue",Helvetica,Arial,sans-serif;
+  padding: 8px 12px;
   font-size: 14px;
-  line-height: 100%;
-  margin: 0;
-  outline: 0;
-  padding: 11px 15px 12px;
-  text-align: center;
-  transition: box-shadow .05s ease-in-out,opacity .05s ease-in-out;
-  user-select: none;
-  -webkit-user-select: none;
-  touch-action: manipulation;
-  width: 100%;
-  height: 85%;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
 }
 
-.issue-filter button:hover {
-  box-shadow: rgba(255, 255, 255, 0.3) 0 0 2px inset, rgba(0, 0, 0, 0.4) 0 1px 2px;
-  text-decoration: none;
-  transition-duration: .15s, .15s;
+.button:hover {
+  background-color: #0747a6;
 }
 
-.issue-filter button:active {
-  box-shadow: rgba(0, 0, 0, 0.15) 0 2px 4px inset, rgba(0, 0, 0, 0.4) 0 1px 1px;
+.button.secondary {
+  background-color: #f4f5f7;
+  color: #42526e;
+  border: 1px solid #ddd;
 }
 
-.issue-filter button:disabled {
-  cursor: not-allowed;
-  opacity: .6;
+.button.secondary:hover {
+  background-color: #ebecf0;
 }
 
-.issue-filter button:disabled:active {
+.unestimated-filter {
+  display: flex;
+  flex-direction: column;
+}
+
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.custom-checkbox {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  transition: all 0.2s ease;
   pointer-events: none;
 }
 
-.issue-filter button:disabled:hover {
-  box-shadow: none;
+.custom-checkbox:hover {
+  border-color: #0052cc;
+}
+
+input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 16px;
+  width: 16px;
+  z-index: 2;
+  margin: 0;
+}
+
+input[type="checkbox"]:checked + .custom-checkbox {
+  background-color: #0052cc;
+  border-color: #0052cc;
+}
+
+input[type="checkbox"]:checked + .custom-checkbox:after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.unestimated-filter label {
+  font-size: 14px;
+  color: #42526e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.last-update-time {
+  font-size: 12px;
+  color: #6b778c;
+  white-space: nowrap;
 }
 
 .spinner {
@@ -93,6 +186,7 @@
   justify-content: center;
   align-items: center;
 }
+
 .loader {
   border: 16px solid #f3f3f3; /* Light grey */
   border-top: 16px solid #3498db; /* Blue */
@@ -101,8 +195,8 @@
   height: 60px;
   animation: spin 2s linear infinite;
 }
+
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
-
