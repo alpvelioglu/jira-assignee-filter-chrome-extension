@@ -4,6 +4,7 @@ import uniqBy from 'lodash/uniqBy';
 
 const CONSOLE_PREFIX = '[ASSIGNEE_FILTER]';
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+const REAPPLY_DELAY = 500; // ms to wait before reapplying filters after DOM changes
 
 const logger = {
   log: (...args) => console.log(CONSOLE_PREFIX, ...args),
@@ -32,9 +33,14 @@ let observers = [];
 let currentAssignee = null;
 let testers = null;
 let showUnestimatedOnly = false;
+let reapplyFiltersTimeout = null;
+let boardObserver = null;
+let isInitialized = false;
 
 const init = async () => {
   try {
+    cleanupObservers();
+    
     let boardId = getBoardId();
     let sprintId = await getActiveSprintId(boardId);
     const assignees = getAllVisibleAssignees();
@@ -110,6 +116,11 @@ const init = async () => {
       window.navigation.removeEventListener("navigate", handleNavigate);
       window.navigation.addEventListener("navigate", handleNavigate);
     }
+    
+    setupBoardObservers();
+    
+    isInitialized = true;
+    logger.info('Extension initialized successfully');
   } catch (error) {
     logger.error('Error initializing extension:', error);
     if (!document.getElementById('assignee-filter-container')) {
@@ -123,13 +134,190 @@ const init = async () => {
   }
 };
 
-function handleNavigate(event) { init();}
+const cleanupObservers = () => {
+  if (observers && observers.length) {
+    observers.forEach(observer => {
+      if (observer && typeof observer.disconnect === 'function') {
+        observer.disconnect();
+      }
+    });
+    observers = [];
+  }
+  
+  if (boardObserver && typeof boardObserver.disconnect === 'function') {
+    boardObserver.disconnect();
+    boardObserver = null;
+  }
+  
+  if (reapplyFiltersTimeout) {
+    clearTimeout(reapplyFiltersTimeout);
+    reapplyFiltersTimeout = null;
+  }
+};
 
-function pad(num) {
+const setupBoardObservers = () => {
+  try {
+    const boardElement = document.querySelector('.ghx-work, .ghx-backlog-container');
+    
+    if (!boardElement) {
+      logger.warn('Could not find board element to observe');
+      return;
+    }
+    
+    boardObserver = new MutationObserver((mutations) => {
+      const significantChanges = mutations.some(mutation => {
+        if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
+          return true;
+        }
+        
+        if (mutation.type === 'attributes' && 
+            (mutation.target.classList.contains('ghx-issue') || 
+             mutation.target.classList.contains('ghx-issue-compact'))) {
+          return true;
+        }
+        
+        return false;
+      });
+      
+      if (significantChanges) {
+        if (reapplyFiltersTimeout) {
+          clearTimeout(reapplyFiltersTimeout);
+        }
+        
+        reapplyFiltersTimeout = setTimeout(() => {
+          logger.info('Board updated, reapplying filters');
+          reapplyFilters();
+        }, REAPPLY_DELAY);
+      }
+    });
+    
+    boardObserver.observe(boardElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'data-issue-key', 'style']
+    });
+    
+    const columns = document.querySelectorAll('.ghx-column');
+    columns.forEach(column => {
+      const observer = new MutationObserver(() => {
+        if (reapplyFiltersTimeout) {
+          clearTimeout(reapplyFiltersTimeout);
+        }
+        
+        reapplyFiltersTimeout = setTimeout(() => {
+          logger.info('Column updated, reapplying filters');
+          reapplyFilters();
+        }, REAPPLY_DELAY);
+      });
+      
+      observer.observe(column, { 
+        childList: true, 
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+      
+      observers.push(observer);
+    });
+    
+    const tabsContainer = document.querySelector('.tabs-menu');
+    if (tabsContainer) {
+      const tabObserver = new MutationObserver(() => {
+        setTimeout(() => {
+          if (document.querySelector('.ghx-work, .ghx-backlog-container')) {
+            logger.info('Tab changed, reinitializing');
+            init();
+          }
+        }, 1000);
+      });
+      
+      tabObserver.observe(tabsContainer, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'aria-selected']
+      });
+      
+      observers.push(tabObserver);
+    }
+    
+    document.addEventListener('issueRefreshed', handleJiraEvent);
+    document.addEventListener('issueUpdated', handleJiraEvent);
+    document.addEventListener('boardRefreshed', handleJiraEvent);
+    
+    logger.info('Board observers set up successfully');
+  } catch (error) {
+    logger.error('Error setting up board observers:', error);
+  }
+};
+
+const handleJiraEvent = (event) => {
+  logger.info(`JIRA event detected: ${event.type}`);
+  
+  if (reapplyFiltersTimeout) {
+    clearTimeout(reapplyFiltersTimeout);
+  }
+  
+  reapplyFiltersTimeout = setTimeout(() => {
+    reapplyFilters();
+  }, REAPPLY_DELAY);
+};
+
+const reapplyFilters = () => {
+  try {
+    if (!isInitialized) {
+      logger.info('Extension not initialized yet, skipping filter reapplication');
+      return;
+    }
+    
+    logger.info('Reapplying filters', { 
+      currentAssignee, 
+      showUnestimatedOnly 
+    });
+    
+    const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+    
+    $(issueSelector).show();
+    
+    if (showUnestimatedOnly) {
+      $(issueSelector).each((_, el) => {
+        const issueElement = $(el);
+        if (!isUnestimated(issueElement)) {
+          issueElement.hide();
+        }
+      });
+    }
+    
+    if (currentAssignee) {
+      const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
+      
+      $(issueSelector + ':visible').each((_, el) => {
+        const issueElement = $(el);
+        if (!issueElement.find(`img[alt="Assignee: ${currentAssignee}"]`).length) {
+          issueElement.hide();
+        }
+      });
+      
+      $('.assignee-avatar').removeClass('highlight');
+      $(`.assignee-avatar[data-name="${currentAssignee}"]`).addClass('highlight');
+    }
+    
+    logger.info('Filters reapplied successfully');
+  } catch (error) {
+    logger.error('Error reapplying filters:', error);
+  }
+};
+
+const handleNavigate = () => {
+  setTimeout(init, 1000);
+};
+
+const pad = (num) => {
   return num < 10 ? '0' + num : num;
 }
 
-function formatDate(date) {
+const formatDate = (date) => {
   const day = pad(date.getDate());
   const month = pad(date.getMonth() + 1);
   const year = date.getFullYear();
@@ -218,7 +406,6 @@ const filterToAssignee = async (name) => {
     $(`.assignee-avatar[data-name="${name}"]`).addClass('highlight');
   } else {
     if (showUnestimatedOnly) {
-      // For backlog view, we need special handling
       if (isBacklogView()) {
         $(issueSelector).each((_, el) => {
           const issueElement = $(el);
@@ -251,7 +438,6 @@ const filterToIssue = (query) => {
     if (currentAssignee) {
       filterToAssignee(currentAssignee);
     } else if (showUnestimatedOnly) {
-      // If only showing unestimated tasks
       $(issueSelector).each((_, el) => {
         const issueElement = $(el);
         if (isUnestimated(issueElement)) {
@@ -266,10 +452,8 @@ const filterToIssue = (query) => {
     return;
   }
   
-  // Hide all issues first
   $(issueSelector).hide();
   
-  // Show issues that match the query and respect other filters
   const lowerQuery = query.toLowerCase();
   
   $(issueSelector).each((_, el) => {
@@ -287,21 +471,16 @@ const filterToIssue = (query) => {
 
 const isUnestimated = (issueElement) => {
   try {
-    // Handle different views (active board vs backlog)
     if (isBacklogView()) {
-      // In backlog view, check for empty or space-only content in the badge
       const badgeElement = issueElement.find('aui-badge.ghx-statistic-badge[title="Story Points"]');
       
       if (badgeElement.length > 0) {
         const badgeText = badgeElement.text().trim();
-        // Check if badge is empty, contains only spaces, or contains &nbsp;
         return badgeText === '' || badgeText === ' ' || badgeText === '\u00A0' || badgeText === '&nbsp;';
       }
       
-      // If no badge found, consider it unestimated
       return true;
     } else {
-      // In active board view, check for empty badges or ones with "Unestimated" title
       const badgeElement = issueElement.find('aui-badge[title="Unestimated"], aui-badge[title="Story Points"]:contains(" ")');
       return badgeElement.length > 0 && (
         badgeElement.text().trim() === '' || 
@@ -313,7 +492,6 @@ const isUnestimated = (issueElement) => {
     }
   } catch (error) {
     logger.error('Error in isUnestimated function:', error);
-    // Default to false in case of error to avoid hiding issues incorrectly
     return false;
   }
 };
