@@ -36,6 +36,7 @@ let showUnestimatedOnly = false;
 let reapplyFiltersTimeout = null;
 let boardObserver = null;
 let isInitialized = false;
+let selectedVersions = [];
 
 const init = async () => {
   try {
@@ -47,6 +48,7 @@ const init = async () => {
     const assigneeFilter = renderFilter(assignees);
     const issueFilter = renderIssueFilter();
     const unestimatedFilter = renderUnestimatedFilter();
+    const versionFilter = renderVersionFilter();
     
     let testersData = localStorage.getItem('testersData') 
       ? JSON.parse(localStorage.getItem('testersData'))
@@ -69,6 +71,7 @@ const init = async () => {
     filtersWrapper.className = 'filter-section';
     filtersWrapper.appendChild(issueFilter);
     filtersWrapper.appendChild(unestimatedFilter);
+    filtersWrapper.appendChild(versionFilter);
     
     const timeWrapper = document.createElement('div');
     timeWrapper.className = 'filter-section';
@@ -278,27 +281,24 @@ const reapplyFilters = () => {
     
     const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
     
-    $(issueSelector).show();
-    
-    if (showUnestimatedOnly) {
-      $(issueSelector).each((_, el) => {
-        const issueElement = $(el);
-        if (!isUnestimated(issueElement)) {
-          issueElement.hide();
+    $(issueSelector).each((_, el) => {
+      const issueElement = $(el);
+      let visible = true;
+      // Unestimated filter
+      if (showUnestimatedOnly && !isUnestimated(issueElement)) visible = false;
+      // Assignee filter
+      if (visible && currentAssignee && !issueElement.find(`img[alt="Assignee: ${currentAssignee}"]`).length) visible = false;
+      // Version filter - Simplified
+      const version = extractVersionFromIssue(issueElement);
+      if (visible && selectedVersions.length > 0) { // Only filter if versions are selected
+        if (!selectedVersions.includes(version)) {
+          visible = false;
         }
-      });
-    }
+      }
+      if (visible) issueElement.show(); else issueElement.hide();
+    });
     
     if (currentAssignee) {
-      const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
-      
-      $(issueSelector + ':visible').each((_, el) => {
-        const issueElement = $(el);
-        if (!issueElement.find(`img[alt="Assignee: ${currentAssignee}"]`).length) {
-          issueElement.hide();
-        }
-      });
-      
       $('.assignee-avatar').removeClass('highlight');
       $(`.assignee-avatar[data-name="${currentAssignee}"]`).addClass('highlight');
     }
@@ -350,105 +350,14 @@ const getAllVisibleAssignees = () => {
 const filterToAssignee = async (name) => {
   currentAssignee = name;
   localStorage.setItem('currentAssignee', name);
-
-  const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
-  const avatarContainer = isBacklogView() ? '.ghx-end img' : '.ghx-avatar img';
-  
-  $('.assignee-avatar').removeClass('highlight');
-
-  observers.map((o) => o.disconnect());
-  observers = [];
-  if (currentAssignee) {
-    $('.ghx-column').each((_, e) => {
-      const observer = new MutationObserver(() => {
-        filterToAssignee(currentAssignee);
-      });
-      observer.observe(e, { childList: true, subtree: true });
-      observers.push(observer);
-    });
-
-    $(issueSelector).hide();
-
-    $(`${avatarContainer}[alt="Assignee: ${currentAssignee}"]`).each((_, el) => {
-      const issueElement = $(el).closest(issueSelector);
-      if (!showUnestimatedOnly || isUnestimated(issueElement)) {
-        issueElement.show();
-      }
-    });
-
-    let currentTesterData = [];
-    if (window.testers && Array.isArray(window.testers)) {
-      currentTesterData = window.testers.filter(tester => tester && tester.name === currentAssignee);
-    } else {
-      try {
-        const testersData = JSON.parse(localStorage.getItem('testersData') || '{"testers":[]}');
-        if (testersData && testersData.testers && Array.isArray(testersData.testers)) {
-          currentTesterData = testersData.testers.filter(tester => tester && tester.name === currentAssignee);
-        }
-      } catch (error) {
-        logger.error('Error parsing testers data from localStorage:', error);
-      }
-    }
-
-    if (currentTesterData && currentTesterData.length > 0) {
-      currentTesterData.forEach(tester => {
-        if (tester && tester.key) {
-          $(`[data-issue-key="${tester.key}"]`).each((_, el) => {
-            const issueElement = $(el).closest(issueSelector);
-            if (!showUnestimatedOnly || isUnestimated(issueElement)) {
-              issueElement.show();
-            }
-          });
-        }
-      });
-    }
-    
-    $(`.assignee-avatar[data-name="${name}"]`).addClass('highlight');
-  } else {
-    if (showUnestimatedOnly) {
-      if (isBacklogView()) {
-        $(issueSelector).each((_, el) => {
-          const issueElement = $(el);
-          if (isUnestimated(issueElement)) {
-            issueElement.show();
-          } else {
-            issueElement.hide();
-          }
-        });
-      } else {
-        $(issueSelector).each((_, el) => {
-          const issueElement = $(el);
-          if (isUnestimated(issueElement)) {
-            issueElement.show();
-          } else {
-            issueElement.hide();
-          }
-        });
-      }
-    } else {
-      $(issueSelector).show();
-    }
-  }
+  reapplyFilters();
 };
 
 const filterToIssue = (query) => {
   const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
   
   if (!query) {
-    if (currentAssignee) {
-      filterToAssignee(currentAssignee);
-    } else if (showUnestimatedOnly) {
-      $(issueSelector).each((_, el) => {
-        const issueElement = $(el);
-        if (isUnestimated(issueElement)) {
-          issueElement.show();
-        } else {
-          issueElement.hide();
-        }
-      });
-    } else {
-      $(issueSelector).show();
-    }
+    reapplyFilters();
     return;
   }
   
@@ -460,12 +369,16 @@ const filterToIssue = (query) => {
     const $el = $(el);
     const key = $el.data('issue-key') || $el.attr('id') || '';
     const summary = $el.find('.ghx-summary').text() || '';
-    
-    if ((key.toLowerCase().includes(lowerQuery) || summary.toLowerCase().includes(lowerQuery)) && 
-        (!showUnestimatedOnly || isUnestimated($el)) && 
-        (!currentAssignee || $el.find(`img[alt="Assignee: ${currentAssignee}"]`).length > 0)) {
-      $el.show();
-    }
+    const version = extractVersionFromIssue($el);
+    let visible = (key.toLowerCase().includes(lowerQuery) || summary.toLowerCase().includes(lowerQuery));
+    if (visible && showUnestimatedOnly && !isUnestimated($el)) visible = false;
+    if (visible && currentAssignee && !$el.find(`img[alt="Assignee: ${currentAssignee}"]`).length) visible = false;
+    if (visible && selectedVersions.length > 0) { // Only filter if versions are selected
+        if (!selectedVersions.includes(version)) {
+          visible = false;
+        }
+      }
+    if (visible) $el.show();
   });
 };
 
@@ -516,23 +429,45 @@ const renderIssueFilter = () => {
   const clearButton = document.createElement('button');
   clearButton.className = 'button secondary';
   clearButton.textContent = 'Sıfırla';
+  
   clearButton.addEventListener('click', () => {
+    // Reset text filter
     input.value = '';
     filterToIssue('');
+    
+    // Reset assignee filter
     filterToAssignee(null);
     
+    // Reset unestimated filter
     showUnestimatedOnly = false;
     localStorage.setItem('showUnestimatedOnly', 'false');
-
-    const checkbox = document.getElementById('show-unestimated-checkbox');
-    if (checkbox) {
-      checkbox.checked = false;
+    const unestimatedCheckbox = document.getElementById('show-unestimated-checkbox');
+    if (unestimatedCheckbox) {
+      unestimatedCheckbox.checked = false;
     }
     
-    const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
-    $(issueSelector).show();
+    // Reset version filter state
+    selectedVersions = [];
+    localStorage.setItem('selectedVersions', JSON.stringify([]));
     
-    init();
+    // Reset the MultiSelect if it exists - remove all selected options
+    setTimeout(() => {
+      try {
+        // Find all the selected options and unselect them
+        const multiselectContainer = document.querySelector('.multi-select');
+        if (multiselectContainer) {
+          const selectedOptions = multiselectContainer.querySelectorAll('.multi-select-option.multi-select-selected');
+          selectedOptions.forEach(option => {
+            option.click(); // This will trigger the unselect
+          });
+        }
+      } catch (e) {
+        logger.error('Error resetting version filter:', e);
+      }
+    }, 0);
+    
+    // Reapply filters to show all issues
+    reapplyFilters();
   });
   
   inputContainer.appendChild(input);
@@ -640,7 +575,8 @@ const renderFilter = (assignees) => {
 };
 
 const isBacklogView = () => {
-  return window.location.href.includes('view=planning' || 'view=planning.nodetail');
+  // Corrected the OR condition
+  return window.location.href.includes('view=planning') || window.location.href.includes('view=planning.nodetail');
 };
 
 const getBoardId = () => {
@@ -837,6 +773,125 @@ const renderUnestimatedFilter = () => {
   checkboxContainer.appendChild(customCheckbox);
   checkboxContainer.appendChild(checkboxLabel);
   container.appendChild(checkboxContainer);
+  
+  return container;
+};
+
+const getAllVisibleVersions = () => {
+  const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+  const versions = new Set();
+  logger.log('Searching for versions using selector:', issueSelector);
+  $(issueSelector).each((index, el) => {
+    const issueElement = $(el);
+    const version = extractVersionFromIssue(issueElement);
+    if (version && version.trim() !== '') {
+      versions.add(version.trim());
+    } else {
+      // Log if an issue element was found but no version extracted
+      // logger.log('No version found for issue:', issueElement.data('issue-key') || issueElement.attr('id'));
+    }
+  });
+  const sortedVersions = Array.from(versions).sort();
+  logger.log('Found versions:', sortedVersions);
+  return sortedVersions;
+};
+
+const extractVersionFromIssue = (issueElement) => {
+  try {
+    // First look for the ghx-extra-field-content that contains version info
+    const extraFieldContent = issueElement.find('.ghx-extra-field-content');
+    if (extraFieldContent.length > 0) {
+      // The version is directly in this element, e.g. "4.8.6"
+      const versionText = extraFieldContent.text().trim();
+      // Ensure it looks like a version number
+      if (versionText.includes('.') && /\d/.test(versionText)) {
+        return versionText;
+      }
+    }
+    
+    // If not found in the first method, try alternative selectors
+    // In board view, might be in a different place
+    const versionLabels = issueElement.find('span.aui-label');
+    let versionText = "";
+    
+    versionLabels.each((_, label) => {
+      const text = $(label).text().trim();
+      // Check if it looks like a version (contains dots and numbers)
+      if (text.includes('.') && /^\d/.test(text)) {
+        versionText = text;
+        return false; // break the loop
+      }
+    });
+    
+    return versionText;
+  } catch (err) {
+    logger.error('Error extracting version:', err);
+    return '';
+  }
+};
+
+// Redesigned version filter using the MultiSelect library
+const renderVersionFilter = () => {
+  const container = document.createElement('div');
+  container.className = 'version-filter';
+  
+  const label = document.createElement('div');
+  label.className = 'filter-section-label';
+  label.textContent = 'Versiyon Filtresi';
+  container.appendChild(label);
+  
+  // Create a select element that MultiSelect will transform
+  const select = document.createElement('select');
+  select.id = 'version-multiselect';
+  select.setAttribute('multiple', 'multiple');
+  select.setAttribute('data-placeholder', 'Versiyon Seç');
+  select.setAttribute('data-search', 'true');
+  select.setAttribute('data-select-all', 'false');
+  select.style.width = '180px';
+  
+  // Get all versions and add them as options
+  const versions = getAllVisibleVersions();
+  versions.forEach(version => {
+    const option = document.createElement('option');
+    option.value = version;
+    option.textContent = version;
+    option.selected = selectedVersions.includes(version);
+    select.appendChild(option);
+  });
+  
+  container.appendChild(select);
+  
+  // Initialize MultiSelect after the container is added to DOM
+  setTimeout(() => {
+    try {
+      // Store initially selected versions
+      const initialSelectedVersions = JSON.parse(localStorage.getItem('selectedVersions') || '[]');
+      
+      // Initialize the MultiSelect component
+      const multiSelect = new MultiSelect(select, {
+        placeholder: 'Versiyon Seç',
+        search: true,
+        selectAll: false,
+        onChange: (value) => {
+          // Update selectedVersions state when selection changes
+          selectedVersions = multiSelect.selectedValues || [];
+          localStorage.setItem('selectedVersions', JSON.stringify(selectedVersions));
+          reapplyFilters();
+        }
+      });
+      
+      // Store reference to multiSelect for reset functionality
+      window.versionMultiSelect = multiSelect;
+      
+      // Pre-select stored versions
+      if (initialSelectedVersions.length > 0) {
+        // The MultiSelect component handles the preselection through option.selected
+        reapplyFilters();
+      }
+    } catch (error) {
+      logger.error('Error initializing MultiSelect:', error);
+    }
+  }, 0);
   
   return container;
 };

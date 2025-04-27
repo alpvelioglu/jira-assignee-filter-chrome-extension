@@ -23,6 +23,7 @@ module.exports.default = [
       copy({
         targets: [
           { src: 'src/style.css', dest: 'dist' },
+          { src: 'src/multiselect/multiselect.css', dest: 'dist' }
         ],
       }),
     ],

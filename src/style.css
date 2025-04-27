@@ -49,7 +49,7 @@
 
 .filter-section {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Align items to the top */
   gap: 10px;
   padding-left: 10px;
   border-left: 1px solid #ddd;
@@ -199,4 +199,42 @@ input[type="checkbox"]:checked + .custom-checkbox:after {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+.version-filter {
+  display: flex;
+  flex-direction: column;
+}
+
+.version-multiselect-control {
+  /* Match other inputs/buttons */
+  padding: 6px 10px;
+  border: 1px solid #ccc; /* Match Jira's typical border */
+  border-radius: 3px;
+  background-color: #fff;
+  font-size: 14px;
+  margin-top: 4px; /* Align with label */
+  min-width: 180px; /* Adjust as needed */
+  /* Ensure consistent height with other elements if needed */
+   height: calc(4 * 1.5em + 12px + 2px); /* Approx height for size=4 based on font-size and padding */
+   box-sizing: border-box; /* Include padding and border in height */
+}
+
+.version-multiselect-control:focus {
+  outline: none;
+  border-color: #0052cc;
+  box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.25);
+}
+
+/* Style options if desired (limited browser support) */
+.version-multiselect-control option {
+  padding: 4px 8px;
+}
+
+/* Ensure filter items take appropriate space */
+.issue-filter,
+.unestimated-filter,
+.version-filter {
+  /* Add some spacing if needed */
+  /* margin-right: 15px; */
 }
