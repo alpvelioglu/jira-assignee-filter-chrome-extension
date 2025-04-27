@@ -33,6 +33,7 @@ let observers = [];
 let currentAssignee = null;
 let testers = null;
 let showUnestimatedOnly = false;
+let showNoVersionOnly = false;
 let reapplyFiltersTimeout = null;
 let boardObserver = null;
 let isInitialized = false;
@@ -86,7 +87,9 @@ const init = async () => {
     
     var cassignee = localStorage.getItem('currentAssignee');
     var unestimatedOnly = localStorage.getItem('showUnestimatedOnly') === 'true';
+    var noVersionOnly = localStorage.getItem('showNoVersionOnly') === 'true';
     showUnestimatedOnly = unestimatedOnly;
+    showNoVersionOnly = noVersionOnly;
     filterToAssignee(cassignee === 'null' ? null : cassignee);
     
     if (sprintId) {
@@ -110,6 +113,7 @@ const init = async () => {
     cassignee = localStorage.getItem('currentAssignee');
     unestimatedOnly = localStorage.getItem('showUnestimatedOnly') === 'true';
     showUnestimatedOnly = unestimatedOnly;
+    showNoVersionOnly = localStorage.getItem('showNoVersionOnly') === 'true';
     filterToAssignee(cassignee === 'null' ? null : cassignee);
     
     if (window.navigation) {
@@ -121,6 +125,18 @@ const init = async () => {
     
     isInitialized = true;
     logger.info('Extension initialized successfully');
+    // Apply version filter if needed
+    if (showNoVersionOnly) {
+      const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+      $(issueSelector).each((_, el) => {
+        const issueElement = $(el);
+        if (isNoneVersion(issueElement)) {
+          issueElement.show();
+        } else {
+          issueElement.hide();
+        }
+      });
+    }
   } catch (error) {
     logger.error('Error initializing extension:', error);
     if (!document.getElementById('assignee-filter-container')) {
@@ -273,7 +289,8 @@ const reapplyFilters = () => {
     
     logger.info('Reapplying filters', { 
       currentAssignee, 
-      showUnestimatedOnly 
+      showUnestimatedOnly,
+      showNoVersionOnly
     });
     
     const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
@@ -284,6 +301,15 @@ const reapplyFilters = () => {
       $(issueSelector).each((_, el) => {
         const issueElement = $(el);
         if (!isUnestimated(issueElement)) {
+          issueElement.hide();
+        }
+      });
+    }
+    
+    if (showNoVersionOnly) {
+      $(issueSelector + ':visible').each((_, el) => {
+        const issueElement = $(el);
+        if (!isNoneVersion(issueElement)) {
           issueElement.hide();
         }
       });
@@ -522,11 +548,18 @@ const renderIssueFilter = () => {
     filterToAssignee(null);
     
     showUnestimatedOnly = false;
+    showNoVersionOnly = false;
     localStorage.setItem('showUnestimatedOnly', 'false');
+    localStorage.setItem('showNoVersionOnly', 'false');
 
     const checkbox = document.getElementById('show-unestimated-checkbox');
     if (checkbox) {
       checkbox.checked = false;
+    }
+
+    const versionCheckbox = document.getElementById('show-noversion-checkbox');
+    if (versionCheckbox) {
+      versionCheckbox.checked = false;
     }
     
     const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
@@ -779,6 +812,7 @@ const renderUnestimatedFilter = () => {
   label.textContent = 'Filtrele';
   container.appendChild(label);
   
+  // Unestimated checkbox
   const checkboxContainer = document.createElement('div');
   checkboxContainer.className = 'checkbox-container';
   
@@ -799,7 +833,6 @@ const renderUnestimatedFilter = () => {
   checkboxLabel.addEventListener('click', (e) => {
     e.preventDefault();
     checkbox.checked = !checkbox.checked;
-    
     const changeEvent = new Event('change');
     checkbox.dispatchEvent(changeEvent);
   });
@@ -808,7 +841,6 @@ const renderUnestimatedFilter = () => {
     try {
       showUnestimatedOnly = e.target.checked;
       localStorage.setItem('showUnestimatedOnly', showUnestimatedOnly);
-      
       if (currentAssignee) {
         filterToAssignee(currentAssignee);
       } else {
@@ -837,8 +869,87 @@ const renderUnestimatedFilter = () => {
   checkboxContainer.appendChild(customCheckbox);
   checkboxContainer.appendChild(checkboxLabel);
   container.appendChild(checkboxContainer);
-  
+
+  // Version None checkbox
+  const versionCheckboxContainer = document.createElement('div');
+  versionCheckboxContainer.className = 'checkbox-container';
+
+  const versionCheckbox = document.createElement('input');
+  versionCheckbox.type = 'checkbox';
+  versionCheckbox.id = 'show-noversion-checkbox';
+  versionCheckbox.checked = localStorage.getItem('showNoVersionOnly') === 'true';
+
+  const versionCustomCheckbox = document.createElement('span');
+  versionCustomCheckbox.className = 'custom-checkbox';
+
+  const versionCheckboxLabel = document.createElement('label');
+  versionCheckboxLabel.htmlFor = 'show-noversion-checkbox';
+  versionCheckboxLabel.textContent = 'Versiyonu olmayan taskları göster';
+
+  versionCheckboxContainer.style.position = 'relative';
+
+  versionCheckboxLabel.addEventListener('click', (e) => {
+    e.preventDefault();
+    versionCheckbox.checked = !versionCheckbox.checked;
+    const changeEvent = new Event('change');
+    versionCheckbox.dispatchEvent(changeEvent);
+  });
+
+  versionCheckbox.addEventListener('change', (e) => {
+    try {
+      showNoVersionOnly = e.target.checked;
+      localStorage.setItem('showNoVersionOnly', showNoVersionOnly);
+      // Only show issues with version 'None' if checked
+      const issueSelector = isBacklogView() ? '.ghx-issue-compact' : '.ghx-issue';
+      if (showNoVersionOnly) {
+        $(issueSelector).each((_, el) => {
+          const issueElement = $(el);
+          if (isNoneVersion(issueElement)) {
+            issueElement.show();
+          } else {
+            issueElement.hide();
+          }
+        });
+      } else {
+        if (currentAssignee) {
+          filterToAssignee(currentAssignee);
+        } else if (showUnestimatedOnly) {
+          $(issueSelector).each((_, el) => {
+            const issueElement = $(el);
+            if (isUnestimated(issueElement)) {
+              issueElement.show();
+            } else {
+              issueElement.hide();
+            }
+          });
+        } else {
+          $(issueSelector).show();
+        }
+      }
+    } catch (error) {
+      logger.error('Error in version checkbox change handler:', error);
+      showNoVersionOnly = e.target.checked;
+      localStorage.setItem('showNoVersionOnly', showNoVersionOnly);
+    }
+  });
+
+  versionCheckboxContainer.appendChild(versionCheckbox);
+  versionCheckboxContainer.appendChild(versionCustomCheckbox);
+  versionCheckboxContainer.appendChild(versionCheckboxLabel);
+  container.appendChild(versionCheckboxContainer);
+
   return container;
+};
+
+const isNoneVersion = (issueElement) => {
+  const versionSpans = issueElement.find('.ghx-extra-field-content');
+  let foundNone = false;
+  versionSpans.each((_, el) => {
+    if ($(el).text().trim().toLowerCase() === 'none') {
+      foundNone = true;
+    }
+  });
+  return foundNone;
 };
 
 $(window).ready(init);
